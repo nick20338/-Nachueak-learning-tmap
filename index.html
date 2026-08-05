@@ -1135,14 +1135,24 @@
                   if (successCb) successCb({ ratings: ratings, views: allViewCounts });
                 } catch(e) { if (successCb) successCb({ ratings: {}, views: allViewCounts }); }
               },
-              getAllViewCounts: async function() { if (successCb) successCb(allViewCounts || {}); },
+              getAllViewCounts: async function() {
+                try {
+                  const { data, error } = await _supabase.from('sources').select('id, views');
+                  if (error) throw error;
+                  const counts = {};
+                  (data || []).forEach(row => { counts[row.id] = row.views || 0; });
+                  if (successCb) successCb(counts);
+                } catch (e) { if (successCb) successCb({}); }
+              },
               incrementViewCount: async function(sourceId) {
-                if (sourceId) { allViewCounts[sourceId] = (allViewCounts[sourceId] || 0) + 1; }
-                if (successCb) successCb({ success: true });
+                try {
+                  if (!sourceId) { if (successCb) successCb({ success: false }); return; }
+                  const { data } = await _supabase.from('sources').select('views').eq('id', sourceId).single();
+                  const currentViews = (data && data.views) ? data.views : 0;
+                  await _supabase.from('sources').update({ views: currentViews + 1 }).eq('id', sourceId);
+                  if (successCb) successCb({ success: true });
+                } catch (e) { if (successCb) successCb({ success: false }); }
               }
-            };
-            return handler;
-          }
 
           return new Proxy({}, {
             get: function(target, propKey) {
