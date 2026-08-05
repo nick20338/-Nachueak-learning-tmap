@@ -1135,7 +1135,7 @@
                   if (successCb) successCb({ ratings: ratings, views: allViewCounts });
                 } catch(e) { if (successCb) successCb({ ratings: {}, views: allViewCounts }); }
               },
-              getAllViewCounts: async function() {
+getAllViewCounts: async function() {
                 try {
                   const { data, error } = await _supabase.from('sources').select('id, views');
                   if (error) throw error;
@@ -1153,6 +1153,9 @@
                   if (successCb) successCb({ success: true });
                 } catch (e) { if (successCb) successCb({ success: false }); }
               }
+            };
+            return handler;
+          }
 
           return new Proxy({}, {
             get: function(target, propKey) {
