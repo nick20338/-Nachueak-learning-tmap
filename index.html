@@ -2341,6 +2341,39 @@
       document.getElementById('nearbyViewBtn').addEventListener('click', showNearbyView);
       document.getElementById('newsViewBtn').addEventListener('click', showNewsView);
       document.getElementById('searchInput').addEventListener('input', function() { renderSources(); if (map) updateMapMarkers(); });
+      // ดักจับการเลือกไฟล์ Infographic หน้าแรก
+      var infoFileInput = document.getElementById('homeInfographicFile');
+      if (infoFileInput) {
+        infoFileInput.addEventListener('change', function(e) {
+          var file = e.target.files[0];
+          if (!file) return;
+          if (file.size > 5 * 1024 * 1024) { showToast('❌ ไฟล์ใหญ่เกินไป (สูงสุด 5MB)', 'error'); e.target.value = ''; return; }
+          if (!file.type.startsWith('image/')) { showToast('❌ กรุณาเลือกไฟล์รูปภาพเท่านั้น', 'error'); e.target.value = ''; return; }
+
+          var reader = new FileReader();
+          reader.onload = function(evt) {
+            var base64Img = evt.target.result;
+            showActionLoading('กำลังอัปโหลด Infographic...', '🖼️');
+            
+            google.script.run
+              .withSuccessHandler(function(r) {
+                hideActionLoading();
+                if (r && r.success) {
+                  setHomeInfographicDisplay(base64Img);
+                  showToast('✅ อัปโหลด Infographic สำเร็จ', 'success');
+                } else {
+                  showToast('❌ เกิดข้อผิดพลาดในการบันทึก', 'error');
+                }
+              })
+              .withFailureHandler(function(err) {
+                hideActionLoading();
+                showToast('❌ เกิดข้อผิดพลาด: ' + err, 'error');
+              })
+              .saveHomeSettings({ home_infographic: base64Img });
+          };
+          reader.readAsDataURL(file);
+        });
+      }
       document.getElementById('categoryFilter').addEventListener('change', function() { renderSources(); if (map) updateMapMarkers(); });
 
       document.getElementById('addNewsBtn').addEventListener('click', function() { requireAdmin(function() { openNewsModal(null); }); });
