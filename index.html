@@ -2157,7 +2157,7 @@
 
     function closeNewsModal() { document.getElementById('newsModal').classList.add('hidden'); editingNews = null; newsImageDataUrl = null; resetNewsSubmitBtn(); }
 
-    function submitNews() {
+function submitNews() {
       var title = document.getElementById('newsTitle').value.trim();
       var content = document.getElementById('newsContent').value.trim();
       if (!title) { showToast('&#10008; กรุณากรอกหัวข้อข่าว', 'error'); return; }
@@ -2166,7 +2166,10 @@
       var btn = document.getElementById('submitNewsBtn');
       btn.innerHTML = '&#9203; กำลังบันทึก...'; btn.disabled = true;
       var statusEl = document.getElementById('newsSavingStatus');
-      statusEl.classList.remove('hidden'); statusEl.classList.add('flex');
+      if (statusEl) {
+        statusEl.classList.remove('hidden'); 
+        statusEl.classList.add('flex');
+      }
       showToast('&#9203; กำลังบันทึกข้อมูล กรุณารอสักครู่...', 'info');
 
       var newsData = {
@@ -2174,16 +2177,26 @@
         content: content,
         category: document.getElementById('newsCategory').value,
         is_pinned: document.getElementById('newsPinned').checked,
-        image_url: editingNews && !editingNews._clearImage ? (editingNews.image_url || '') : ''
+        image_url: newsImageDataUrl || (editingNews && !editingNews._clearImage ? (editingNews.image_url || '') : '')
       };
       if (editingNews) { newsData.id = editingNews.id; newsData.createdAt = editingNews.createdAt; }
 
       var doSave = function() {
         var handler = function(result) {
-          if (result.success) { closeNewsModal(); showToast('&#10003; บันทึกสำเร็จ', 'success'); loadNews(); }
-          else { showToast('&#10008; เกิดข้อผิดพลาด: ' + result.error, 'error'); resetNewsSubmitBtn(); }
+          if (result.success) { 
+            closeNewsModal(); 
+            showToast('&#10003; บันทึกสำเร็จ', 'success'); 
+            loadNews(); 
+          } else { 
+            showToast('&#10008; เกิดข้อผิดพลาด: ' + result.error, 'error'); 
+            resetNewsSubmitBtn(); 
+          }
         };
-        var fail = function(e) { showToast('&#10008; เกิดข้อผิดพลาด: ' + e, 'error'); resetNewsSubmitBtn(); };
+        var fail = function(e) { 
+          showToast('&#10008; เกิดข้อผิดพลาด: ' + e, 'error'); 
+          resetNewsSubmitBtn(); 
+        };
+
         if (editingNews) google.script.run.withSuccessHandler(handler).withFailureHandler(fail).updateNews(newsData);
         else google.script.run.withSuccessHandler(handler).withFailureHandler(fail).addNews(newsData);
       };
@@ -2382,6 +2395,33 @@
       document.getElementById('newsModalBackdrop').addEventListener('click', closeNewsModal);
       document.getElementById('cancelNewsBtn').addEventListener('click', closeNewsModal);
       document.getElementById('submitNewsBtn').addEventListener('click', submitNews);
+      // ดักจับการเลือกไฟล์รูปภาพข่าวสาร
+      var newsFileInput = document.getElementById('newsImageFile');
+      if (newsFileInput) {
+        newsFileInput.addEventListener('change', function(e) {
+          var file = e.target.files[0];
+          if (!file) return;
+          if (file.size > 10 * 1024 * 1024) { showToast('❌ ไฟล์ใหญ่เกินไป (สูงสุด 10MB)', 'error'); e.target.value = ''; return; }
+          if (!file.type.startsWith('image/')) { showToast('❌ กรุณาเลือกไฟล์รูปภาพเท่านั้น', 'error'); e.target.value = ''; return; }
+
+          var reader = new FileReader();
+          reader.onload = function(evt) {
+            newsImageDataUrl = evt.target.result;
+            var preview = document.getElementById('newsImagePreview');
+            preview.innerHTML = '<img src="' + newsImageDataUrl + '" alt="preview" class="w-full h-48 object-cover rounded-xl"><div class="remove-news-img-btn" id="removeNewsImgBtn"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></div>';
+            preview.classList.remove('hidden');
+            
+            document.getElementById('removeNewsImgBtn').onclick = function() {
+              newsImageDataUrl = null;
+              preview.innerHTML = '';
+              preview.classList.add('hidden');
+              newsFileInput.value = '';
+              if (editingNews) editingNews._clearImage = true;
+            };
+          };
+          reader.readAsDataURL(file);
+        });
+      }
       document.getElementById('closeNewsDetail').addEventListener('click', closeNewsDetailModal);
       document.getElementById('newsDetailBackdrop').addEventListener('click', closeNewsDetailModal);
 
