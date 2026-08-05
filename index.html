@@ -60,7 +60,7 @@
     .review-card { background:white; border-radius:12px; padding:16px; margin:12px 0; box-shadow:0 2px 8px rgba(0,0,0,0.1); transition:all 0.3s; }
     .review-card:hover { box-shadow:0 4px 16px rgba(0,0,0,0.15); }
     #map { width:100%; height:600px; border-radius:16px; box-shadow:0 4px 12px rgba(0,0,0,0.1); background:#e5e7eb; overflow:hidden; position: relative; z-index: 1; }
-#nearbyMap { position: relative; z-index: 1; }
+    #nearbyMap { position: relative; z-index: 1; }
     .rating-summary { background:linear-gradient(135deg,#fef3c7 0%,#fde68a 100%); border-radius:12px; padding:20px; margin:16px 0; display:flex; align-items:center; gap:20px; }
     .rating-number { font-size:48px; font-weight:bold; color:#d97706; }
     .rating-bars { flex:1; }
@@ -878,8 +878,8 @@
 
   <script>
     // ==================== SUPABASE CONFIG ====================
-    const SUPABASE_URL = 'https://okcbzbbtkobstrmftpuq.supabase.co'; // ⚠️ ตัด /rest/v1/ ออกให้เหลือแค่นี้
-    const SUPABASE_ANON_KEY = 'sb_publishable_jdI4I4buaqVfuPJhBdG8Cg_HCRt-_vW'; // ⚠️ ใส่ Publishable key ของคุณให้ครบ และมีเครื่องหมาย ' ปิดท้าย
+    const SUPABASE_URL = 'https://okcbzbbtkobstrmftpuq.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_jdI4I4buaqVfuPJhBdG8Cg_HCRt-_vW';
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     // ==================== REPLACE GOOGLE SCRIPT RUN ====================
@@ -1009,6 +1009,14 @@
                 } catch (e) { if (successCb) successCb({ success: false, error: e.message }); }
               },
 
+              deleteRequest: async function(requestId) {
+                try {
+                  const { error } = await _supabase.from('requests').delete().eq('id', requestId);
+                  if (error) throw error;
+                  if (successCb) successCb({ success: true });
+                } catch (e) { if (successCb) successCb({ success: false, error: e.message }); }
+              },
+
               addNews: async function(newsData) {
                 try {
                   const { error } = await _supabase.from('news').insert([newsData]);
@@ -1056,13 +1064,23 @@
                   
                   await _supabase.from('requests').update({ status: 'approved', note: adminNote || '' }).eq('id', requestId);
                   
-                  delete reqData.id;
-                  delete reqData.requester_name;
-                  delete reqData.requester_contact;
-                  delete reqData.status;
-                  delete reqData.note;
+                  var newSource = {
+                    name: reqData.name,
+                    category: reqData.category,
+                    province: reqData.province,
+                    description: reqData.description,
+                    location_description: reqData.location_description,
+                    google_maps_url: reqData.google_maps_url,
+                    website: reqData.website,
+                    lat: reqData.lat,
+                    lng: reqData.lng,
+                    image_url_1: reqData.image_url_1,
+                    image_url_2: reqData.image_url_2,
+                    image_url_3: reqData.image_url_3,
+                    image_url_4: reqData.image_url_4
+                  };
 
-                  const { error: insErr } = await _supabase.from('sources').insert([reqData]);
+                  const { error: insErr } = await _supabase.from('sources').insert([newSource]);
                   if (insErr) throw insErr;
 
                   if (successCb) successCb({ success: true });
@@ -1097,9 +1115,31 @@
 
               uploadImages: async function(images) { if (successCb) successCb({}); },
               uploadNewsImage: async function() { if (successCb) successCb({ success: false }); },
-              getAllStatsData: async function() { if (successCb) successCb({ ratings: {}, views: {} }); },
-              getAllViewCounts: async function() { if (successCb) successCb({}); },
-              incrementViewCount: async function() { if (successCb) successCb({ success: true }); }
+              getAllStatsData: async function() {
+                try {
+                  const { data: reviews } = await _supabase.from('reviews').select('*');
+                  const grouped = {};
+                  (reviews || []).forEach(r => {
+                    if (!r.source_id) return;
+                    if (!grouped[r.source_id]) grouped[r.source_id] = { total: 0, sum: 0, distribution: {5:0,4:0,3:0,2:0,1:0} };
+                    var rate = parseInt(r.rating) || 0;
+                    grouped[r.source_id].total++;
+                    grouped[r.source_id].sum += rate;
+                    if (grouped[r.source_id].distribution[rate] !== undefined) grouped[r.source_id].distribution[rate]++;
+                  });
+                  const ratings = {};
+                  Object.keys(grouped).forEach(sid => {
+                    var g = grouped[sid];
+                    ratings[sid] = { average: (g.sum / g.total).toFixed(1), total: g.total, distribution: g.distribution };
+                  });
+                  if (successCb) successCb({ ratings: ratings, views: allViewCounts });
+                } catch(e) { if (successCb) successCb({ ratings: {}, views: allViewCounts }); }
+              },
+              getAllViewCounts: async function() { if (successCb) successCb(allViewCounts || {}); },
+              incrementViewCount: async function(sourceId) {
+                if (sourceId) { allViewCounts[sourceId] = (allViewCounts[sourceId] || 0) + 1; }
+                if (successCb) successCb({ success: true });
+              }
             };
             return handler;
           }
@@ -2157,7 +2197,7 @@
 
     function closeNewsModal() { document.getElementById('newsModal').classList.add('hidden'); editingNews = null; newsImageDataUrl = null; resetNewsSubmitBtn(); }
 
-function submitNews() {
+    function submitNews() {
       var title = document.getElementById('newsTitle').value.trim();
       var content = document.getElementById('newsContent').value.trim();
       if (!title) { showToast('&#10008; กรุณากรอกหัวข้อข่าว', 'error'); return; }
@@ -2342,7 +2382,7 @@ function submitNews() {
       document.getElementById('detailModalBackdrop').addEventListener('click', closeDetailModalFunc);
       document.getElementById('closeCropModal').addEventListener('click', closeCropModal);
       document.getElementById('cropModalBackdrop').addEventListener('click', closeCropModal);
-      document.getElementById('cropCancel').addEventListener('click', closeCropModal);
+      document.getElementById('cropCancel').addEventListener('click',cropCancel').addEventListener('click', closeCropModal);
       document.getElementById('cropConfirm').addEventListener('click', confirmCrop);
       document.getElementById('closeReviewModal').addEventListener('click', closeReviewModal);
       document.getElementById('reviewModalBackdrop').addEventListener('click', closeReviewModal);
@@ -2355,6 +2395,7 @@ function submitNews() {
       document.getElementById('nearbyViewBtn').addEventListener('click', showNearbyView);
       document.getElementById('newsViewBtn').addEventListener('click', showNewsView);
       document.getElementById('searchInput').addEventListener('input', function() { renderSources(); if (map) updateMapMarkers(); });
+      
       // ดักจับการเลือกไฟล์ Infographic หน้าแรก
       var infoFileInput = document.getElementById('homeInfographicFile');
       if (infoFileInput) {
@@ -2395,6 +2436,7 @@ function submitNews() {
       document.getElementById('newsModalBackdrop').addEventListener('click', closeNewsModal);
       document.getElementById('cancelNewsBtn').addEventListener('click', closeNewsModal);
       document.getElementById('submitNewsBtn').addEventListener('click', submitNews);
+      
       // ดักจับการเลือกไฟล์รูปภาพข่าวสาร
       var newsFileInput = document.getElementById('newsImageFile');
       if (newsFileInput) {
