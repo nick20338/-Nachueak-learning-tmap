@@ -1146,80 +1146,91 @@
 
   <script>
 // =========================================================================
-// POLYFILL (FIXED): จำลอง google.script.run สำหรับรันบน GitHub Pages
+// POLYFILL (FIXED CHAINING): จำลอง google.script.run สำหรับ GitHub Pages
 // =========================================================================
-const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbxMBybI0F16SEkzBpJb_YogbcuEbMJGmWbiPhVc3ElovvkXgRZkcPIbnL1YvmK8EKGs/exec'; // ⚠️ ใส่ URL Web App ของคุณให้ครบถ้วน
+const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbxMBybI0F16SEkzBpJb_YogbcuEbMJGmWbiPhVc3ElovvkXgRZkcPIbnL1YvmK8EKGs/exec'; // ⚠️ วาง Web App URL ของคุณที่นี่
 
 if (typeof google === 'undefined' || !google.script) {
   window.google = {
     script: {
-      run: new Proxy({}, {
-        get(target, propKey) {
+      run: (function() {
+        function createRunner() {
           let successCb = null;
           let failureCb = null;
 
-          // สร้างวัตถุ runner ที่ส่งคืนตัวเองเมื่อเรียก withSuccessHandler / withFailureHandler
-          const runner = {};
-          
-          runner.withSuccessHandler = function(fn) {
-            successCb = fn;
-            return runner;
-          };
-          
-          runner.withFailureHandler = function(fn) {
-            failureCb = fn;
-            return runner;
-          };
-
-          // สร้างฟังก์ชัน dynamic สำหรับรับชื่อการเรียกใช้งาน เช่น getData(), getAllRatingStats() ฯลฯ
-          return function(...args) {
-            const isGetMethod = [
-              'getData', 'getNews', 'getReviews', 'getAllStatsData', 
-              'getRequests', 'getHomeSettings', 'getPendingRequestCount', 
-              'getAllRatingStats', 'getAllViewCounts'
-            ].includes(propKey);
-            
-            let fetchPromise;
-            
-            if (isGetMethod) {
-              const params = new URLSearchParams({ action: propKey });
-              if (args[0] && typeof args[0] !== 'object') {
-                params.append('sourceId', args[0]);
-              }
-              fetchPromise = fetch(`${GAS_API_URL}?${params.toString()}`);
-            } else {
-              const payload = { action: propKey };
-              if (propKey === 'checkAdminPassword') payload.password = args[0];
-              else if (['addData', 'updateData', 'addRequest'].includes(propKey)) payload.formData = args[0];
-              else if (['deleteData', 'deleteNews', 'deleteRequest'].includes(propKey)) payload.id = args[0];
-              else if (propKey === 'addReview') payload.reviewData = args[0];
-              else if (propKey === 'deleteReview') payload.reviewId = args[0];
-              else if (propKey === 'uploadImages') payload.images = args[0];
-              else if (['addNews', 'updateNews'].includes(propKey)) payload.newsData = args[0];
-              else if (propKey === 'uploadNewsImage') payload.imageData = args[0];
-              else if (propKey === 'approveRequest') { payload.requestId = args[0]; payload.adminNote = args[1]; }
-              else if (propKey === 'rejectRequest') { payload.requestId = args[0]; payload.adminNote = args[1]; }
-              else if (propKey === 'incrementViewCount') payload.sourceId = args[0];
-              else if (propKey === 'saveHomeSettings') payload.settings = args[0];
-
-              // ใช้ redirect: 'follow' เพื่อรองรับการ Redirect ของ Apps Script
-              fetchPromise = fetch(GAS_API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify(payload),
-                redirect: 'follow'
-              });
+          const runner = {
+            withSuccessHandler: function(fn) {
+              successCb = fn;
+              return runner;
+            },
+            withFailureHandler: function(fn) {
+              failureCb = fn;
+              return runner;
             }
-
-            fetchPromise
-              .then(res => res.json())
-              .then(data => { if (successCb) successCb(data); })
-              .catch(err => { if (failureCb) failureCb(err); });
-
-            return runner;
           };
+
+          return new Proxy(runner, {
+            get: function(target, propKey) {
+              if (propKey in target) return target[propKey];
+
+              return function(...args) {
+                const isGetMethod = [
+                  'getData', 'getNews', 'getReviews', 'getAllStatsData', 
+                  'getRequests', 'getHomeSettings', 'getPendingRequestCount', 
+                  'getAllRatingStats', 'getAllViewCounts'
+                ].includes(propKey);
+
+                let fetchPromise;
+                if (isGetMethod) {
+                  const params = new URLSearchParams({ action: propKey });
+                  if (args[0] && typeof args[0] !== 'object') {
+                    params.append('sourceId', args[0]);
+                  }
+                  fetchPromise = fetch(`${GAS_API_URL}?${params.toString()}`);
+                } else {
+                  const payload = { action: propKey };
+                  if (propKey === 'checkAdminPassword') payload.password = args[0];
+                  else if (['addData', 'updateData', 'addRequest'].includes(propKey)) payload.formData = args[0];
+                  else if (['deleteData', 'deleteNews', 'deleteRequest'].includes(propKey)) payload.id = args[0];
+                  else if (propKey === 'addReview') payload.reviewData = args[0];
+                  else if (propKey === 'deleteReview') payload.reviewId = args[0];
+                  else if (propKey === 'uploadImages') payload.images = args[0];
+                  else if (['addNews', 'updateNews'].includes(propKey)) payload.newsData = args[0];
+                  else if (propKey === 'uploadNewsImage') payload.imageData = args[0];
+                  else if (propKey === 'approveRequest') { payload.requestId = args[0]; payload.adminNote = args[1]; }
+                  else if (propKey === 'rejectRequest') { payload.requestId = args[0]; payload.adminNote = args[1]; }
+                  else if (propKey === 'incrementViewCount') payload.sourceId = args[0];
+                  else if (propKey === 'saveHomeSettings') payload.settings = args[0];
+
+                  fetchPromise = fetch(GAS_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload),
+                    redirect: 'follow'
+                  });
+                }
+
+                fetchPromise
+                  .then(res => res.json())
+                  .then(data => { if (successCb) successCb(data); })
+                  .catch(err => { if (failureCb) failureCb(err); });
+
+                return runner;
+              };
+            }
+          });
         }
-      })
+
+        return new Proxy({}, {
+          get: function(target, propKey) {
+            const instance = createRunner();
+            if (typeof instance[propKey] === 'function') {
+              return instance[propKey];
+            }
+            return instance[propKey];
+          }
+        });
+      })()
     }
   };
 }
