@@ -2603,70 +2603,61 @@ getAllViewCounts: async function() {
     }
 
     function submitRequest() {
-  var name     = (document.getElementById('reqName').value || '').trim();
-  var category = (document.getElementById('reqCategory').value || '').trim();
-  var province = (document.getElementById('reqProvince').value || '').trim();
-  var desc     = (document.getElementById('reqDescription').value || '').trim();
-  var locDesc  = (document.getElementById('reqLocationDesc').value || '').trim();
-  var rName    = (document.getElementById('reqRequesterName').value || '').trim();
-  var rContact = (document.getElementById('reqRequesterContact').value || '').trim();
+      var name = (document.getElementById('reqName').value || '').trim();
+      var category = (document.getElementById('reqCategory').value || '').trim();
+      var province = (document.getElementById('reqProvince').value || '').trim();
+      var desc = (document.getElementById('reqDescription').value || '').trim();
+      var locDesc = (document.getElementById('reqLocationDesc').value || '').trim();
+      var rName = (document.getElementById('reqRequesterName').value || '').trim();
+      var rContact = (document.getElementById('reqRequesterContact').value || '').trim();
 
-  if (!name)     { showToast('❌ กรุณากรอกชื่อแหล่งเรียนรู้', 'error'); return; }
-  if (!category) { showToast('❌ กรุณาเลือกหมวดหมู่', 'error'); return; }
-  if (!province) { showToast('❌ กรุณากรอกอำเภอ', 'error'); return; }
-  if (!desc)     { showToast('❌ กรุณากรอกคำอธิบาย', 'error'); return; }
-  if (!locDesc)  { showToast('❌ กรุณากรอกคำอธิบายสถานที่', 'error'); return; }
-  if (!rName)    { showToast('❌ กรุณากรอกชื่อผู้ส่ง', 'error'); return; }
-  if (!rContact) { showToast('❌ กรุณากรอกช่องทางติดต่อ', 'error'); return; }
+      if (!name) { showToast('❌ กรุณากรอกชื่อแหล่งเรียนรู้', 'error'); return; }
+      if (!category) { showToast('❌ กรุณาเลือกหมวดหมู่', 'error'); return; }
+      if (!province) { showToast('❌ กรุณากรอกอำเภอ', 'error'); return; }
+      if (!desc) { showToast('❌ กรุณากรอกคำอธิบาย', 'error'); return; }
+      if (!locDesc) { showToast('❌ กรุณากรอกคำอธิบายสถานที่', 'error'); return; }
+      if (!rName) { showToast('❌ กรุณากรอกชื่อผู้ส่ง', 'error'); return; }
+      if (!rContact) { showToast('❌ กรุณากรอกช่องทางติดต่อ', 'error'); return; }
 
-  var latLngVal = (document.getElementById('reqLatLng').value || '').trim();
-  if (!latLngVal) { showToast('❌ กรุณากรอกพิกัด GPS', 'error'); return; }
-  var ll = parseLatLng(latLngVal);
-  if (!ll) { showToast('❌ รูปแบบพิกัดไม่ถูกต้อง เช่น 16.185, 103.302', 'error'); return; }
-  var mapsUrl = 'https://www.google.com/maps?q=' + ll.lat + ',' + ll.lng;
+      var latLngVal = (document.getElementById('reqLatLng').value || '').trim();
+      if (!latLngVal) { showToast('❌ กรุณากรอกพิกัด GPS', 'error'); return; }
+      var ll = parseLatLng(latLngVal);
+      if (!ll) { showToast('❌ รูปแบบพิกัดไม่ถูกต้อง เช่น 16.185, 103.302', 'error'); return; }
+      var mapsUrl = 'https://www.google.com/maps?q=' + ll.lat + ',' + ll.lng;
 
-  var btn = document.getElementById('reqSubmitBtn');
-  btn.disabled = true;
-  btn.innerHTML = '⏳ กำลังส่ง...';
+      var btn = document.getElementById('reqSubmitBtn');
+      btn.disabled = true; btn.innerHTML = '⏳ กำลังส่ง...';
 
-  var formData = {
-    name: name, category: category, province: province,
-    description: desc, location_description: locDesc,
-    website: (document.getElementById('reqWebsite').value || '').trim(),
-    google_maps_url: mapsUrl,
-    lat: ll.lat, lng: ll.lng,
-    image_url_1: reqUploadedImages['image1'] || '',
-    image_url_2: reqUploadedImages['image2'] || '',
-    image_url_3: reqUploadedImages['image3'] || '',
-    image_url_4: reqUploadedImages['image4'] || '',
-    requester_name: rName, requester_contact: rContact
-  };
+      var formData = {
+        name: name, category: category, province: province,
+        description: desc, location_description: locDesc,
+        website: (document.getElementById('reqWebsite').value || '').trim(),
+        google_maps_url: mapsUrl,
+        lat: ll.lat, lng: ll.lng,
+        image_url_1: reqUploadedImages['image1'] || '',
+        image_url_2: reqUploadedImages['image2'] || '',
+        image_url_3: reqUploadedImages['image3'] || '',
+        image_url_4: reqUploadedImages['image4'] || '',
+        requester_name: rName, requester_contact: rContact,
+        status: 'pending'
+      };
 
-  // ── นำโค้ด fetch มาใส่ตรงนี้ ──────────────────────────────────────────
-  fetch('https://script.google.com/macros/s/AKfycbxMBybI0F16SEkzBpJb_YogbcuEbMJGmWbiPhVc3ElovvkXgRZkcPIbnL1YvmK8EKGs/exec', {
-    method: 'POST',
-    mode: 'no-cors', // สำคัญมากเพราะเป็นการเรียกข้ามโดเมนจาก GitHub ไป GAS
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      action: 'addRequest',
-      formData: formData
-    })
-  })
-  .then(() => {
-    btn.disabled = false;
-    btn.innerHTML = '📤 ส่งคำขอ';
-    document.getElementById('reqSuccessMsg').classList.remove('hidden');
-    document.getElementById('reqFormBody').classList.add('hidden');
-    showToast('✅ ส่งคำขอสำเร็จและระบบได้แจ้งเตือนเข้า LINE แล้ว!', 'success');
-  })
-  .catch(error => {
-    btn.disabled = false;
-    btn.innerHTML = '📤 ส่งคำขอ';
-    showToast('❌ เกิดข้อผิดพลาด: ' + error, 'error');
-  });
-}
+      google.script.run
+        .withSuccessHandler(function(result) {
+          btn.disabled = false; btn.innerHTML = '📤 ส่งคำขอ';
+          if (result.success) {
+            document.getElementById('reqSuccessMsg').classList.remove('hidden');
+            document.getElementById('reqFormBody').classList.add('hidden');
+            showToast('✅ ส่งคำขอสำเร็จ!', 'success');
+            refreshReqBadge();
+          } else { showToast('❌ เกิดข้อผิดพลาด: ' + result.error, 'error'); }
+        })
+        .withFailureHandler(function(e) {
+          btn.disabled = false; btn.innerHTML = '📤 ส่งคำขอ';
+          showToast('❌ เกิดข้อผิดพลาด: ' + e, 'error');
+        })
+        .addRequest(formData);
+    }
 
     function resetReqForm() {
       document.getElementById('reqSuccessMsg').classList.add('hidden');
